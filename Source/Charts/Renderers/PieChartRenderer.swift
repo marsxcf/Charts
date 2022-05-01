@@ -413,25 +413,27 @@ open class PieChartRenderer: NSObject, DataRenderer
             var rightTopCount = rightTop.count
             var rightBottomCount = rightBottom.count
             
-            if leftBottomCount + leftTopCount > 8 {
-                if leftBottomCount <= 4 {
-                    leftTopCount = 8 - leftBottomCount
-                } else if leftTopCount <= 4 {
-                    leftBottomCount = 8 - leftTopCount
+            let maxCount = Int((chartFrame.height + 15) / 32) - 1
+            
+            if leftBottomCount + leftTopCount > maxCount {
+                if leftBottomCount <= maxCount / 2 {
+                    leftTopCount = maxCount - leftBottomCount
+                } else if leftTopCount <= maxCount / 2 {
+                    leftBottomCount = maxCount - leftTopCount
                 } else {
-                    leftTopCount = 4
-                    leftBottomCount = 4
+                    leftTopCount = maxCount / 2
+                    leftBottomCount = maxCount - leftTopCount
                 }
             }
             
-            if rightTopCount + rightBottomCount > 8 {
-                if rightTopCount <= 4 {
-                    rightBottomCount = 8 - rightTopCount
-                } else if rightBottomCount <= 4 {
-                    rightTopCount = 8 - rightBottomCount
+            if rightTopCount + rightBottomCount > maxCount {
+                if rightTopCount <= maxCount / 2 {
+                    rightBottomCount = maxCount - rightTopCount
+                } else if rightBottomCount <= maxCount {
+                    rightTopCount = maxCount - rightBottomCount
                 } else {
-                    rightBottomCount = 4
-                    rightTopCount = 4
+                    rightBottomCount = maxCount / 2
+                    rightTopCount = maxCount - rightBottomCount
                 }
             }
             
@@ -524,7 +526,6 @@ open class PieChartRenderer: NSObject, DataRenderer
                 if drawXOutside || drawYOutside
                 {
                     let valueLineLength1 = dataSet.valueLinePart1Length
-                    let valueLineLength2 = dataSet.valueLinePart2Length
                     let valueLinePart1OffsetPercentage = dataSet.valueLinePart1OffsetPercentage
 
                     var pt2: CGPoint
