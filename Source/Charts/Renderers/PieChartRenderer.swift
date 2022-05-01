@@ -333,6 +333,8 @@ open class PieChartRenderer: NSObject, DataRenderer
         context.saveGState()
         defer { context.restoreGState() }
 
+        let chartFrame = chart.frame
+        
         for i in data.indices
         {
             guard let dataSet = data[i] as? PieChartDataSetProtocol else { continue }
@@ -356,6 +358,125 @@ open class PieChartRenderer: NSObject, DataRenderer
             let lineHeight = valueFont.lineHeight
             
             let formatter = dataSet.valueFormatter
+            
+            var leftBottom: [Int] = []
+            var leftTop: [Int] = []
+            var rightTop: [Int] = []
+            var rightBottom: [Int] = []
+            
+            for j in 0 ..< dataSet.entryCount
+            {
+                guard let e = dataSet.entryForIndex(j) else { continue }
+
+                if xIndex == 0
+                {
+                    angle = 0.0
+                }
+                else
+                {
+                    angle = absoluteAngles[xIndex - 1] * CGFloat(phaseX)
+                }
+
+                let sliceAngle = drawAngles[xIndex]
+                let sliceSpace = getSliceSpace(dataSet: dataSet)
+                let sliceSpaceMiddleAngle = sliceSpace / labelRadius.DEG2RAD
+
+                // offset needed to center the drawn text in the slice
+                let angleOffset = (sliceAngle - sliceSpaceMiddleAngle / 2.0) / 2.0
+
+                angle = angle + angleOffset
+
+                let transformedAngle = rotationAngle + angle * CGFloat(phaseY)
+                
+                let drawXOutside = sliceAngle > sliceTextDrawingThreshold && drawEntryLabels && xValuePosition == .outsideSlice
+                let drawYOutside = sliceAngle > sliceTextDrawingThreshold && drawValues && yValuePosition == .outsideSlice
+                
+                if drawXOutside || drawYOutside
+                {
+                    let a = transformedAngle.truncatingRemainder(dividingBy: 360.0)
+                    if a >= 90 && a < 180 {
+                        leftBottom.append(j)
+                    } else if a >= 180 && a < 270 {
+                        leftTop.append(j)
+                    } else if a >= 270 && a < 360 {
+                        rightTop.append(j)
+                    } else {
+                        rightBottom.append(j)
+                    }
+                }
+                
+                xIndex += 1
+            }
+            
+            var leftBottomCount = leftBottom.count
+            var leftTopCount = leftTop.count
+            var rightTopCount = rightTop.count
+            var rightBottomCount = rightBottom.count
+            
+            if leftBottomCount + leftTopCount > 8 {
+                if leftBottomCount <= 4 {
+                    leftTopCount = 8 - leftBottomCount
+                } else if leftTopCount <= 4 {
+                    leftBottomCount = 8 - leftTopCount
+                } else {
+                    leftTopCount = 4
+                    leftBottomCount = 4
+                }
+            }
+            
+            if rightTopCount + rightBottomCount > 8 {
+                if rightTopCount <= 4 {
+                    rightBottomCount = 8 - rightTopCount
+                } else if rightBottomCount <= 4 {
+                    rightTopCount = 8 - rightBottomCount
+                } else {
+                    rightBottomCount = 4
+                    rightTopCount = 4
+                }
+            }
+            
+            var indexPoint: [Int: CGPoint] = [:]
+            for (i, v) in leftBottom.enumerated() {
+                if i == leftBottomCount {
+                    break
+                }
+                
+                let y: CGFloat = chartFrame.height - 26 - CGFloat(i * 32)
+                let point = CGPoint(x: 16, y: y)
+                indexPoint[v] = point
+            }
+            
+            for (i, v) in leftTop.reversed().enumerated() {
+                if i == leftTopCount {
+                    break
+                }
+                
+                let y: CGFloat = 26 + CGFloat(i * 32)
+                let point = CGPoint(x: 16, y: y)
+                indexPoint[v] = point
+            }
+            
+            for (i, v) in rightTop.enumerated() {
+                if i == rightTopCount {
+                    break
+                }
+                
+                let y: CGFloat = 26 + CGFloat(i * 32)
+                let point = CGPoint(x: chart.frame.width - 16, y: y)
+                indexPoint[v] = point
+            }
+            
+            for (i, v) in rightBottom.reversed().enumerated() {
+                if i == rightBottomCount {
+                    break
+                }
+                
+                let y: CGFloat = chartFrame.height - 26 - CGFloat(i * 32)
+                let point = CGPoint(x: chart.frame.width - 16, y: y)
+                indexPoint[v] = point
+            }
+            
+            xIndex = 0
             
             for j in 0 ..< dataSet.entryCount
             {
@@ -421,29 +542,27 @@ open class PieChartRenderer: NSObject, DataRenderer
                         line1Radius = radius * valueLinePart1OffsetPercentage
                     }
 
-                    let polyline2Length = dataSet.valueLineVariableLength
-                        ? labelRadius * valueLineLength2 * abs(sin(transformedAngle.DEG2RAD))
-                        : labelRadius * valueLineLength2
-
                     let pt0 = CGPoint(
                         x: line1Radius * sliceXBase + center.x,
                         y: line1Radius * sliceYBase + center.y)
 
-                    let pt1 = CGPoint(
+                    var pt1 = CGPoint(
                         x: labelRadius * (1 + valueLineLength1) * sliceXBase + center.x,
                         y: labelRadius * (1 + valueLineLength1) * sliceYBase + center.y)
+                    
+                    guard let p = indexPoint[j] else { continue }
+                    pt2 = p
+                    pt1.y = pt2.y
 
                     if transformedAngle.truncatingRemainder(dividingBy: 360.0) >= 90.0 && transformedAngle.truncatingRemainder(dividingBy: 360.0) <= 270.0
                     {
-                        pt2 = CGPoint(x: pt1.x - polyline2Length, y: pt1.y)
-                        align = .right
-                        labelPoint = CGPoint(x: pt2.x - 5, y: pt2.y - lineHeight)
+                        align = .left
+                        labelPoint = CGPoint(x: pt2.x, y: pt2.y - lineHeight)
                     }
                     else
                     {
-                        pt2 = CGPoint(x: pt1.x + polyline2Length, y: pt1.y)
-                        align = .left
-                        labelPoint = CGPoint(x: pt2.x + 5, y: pt2.y - lineHeight)
+                        align = .right
+                        labelPoint = CGPoint(x: pt2.x, y: pt2.y - lineHeight)
                     }
 
                     DrawLine: do
